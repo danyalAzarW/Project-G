@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Matrix Surprise</title>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: black;
+        font-family: "Courier New", monospace;
+    }
+
+    #matrixCanvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+    }
+
+    #terminal {
+        position: absolute;
+        z-index: 10;
+        color: #ff0000;
+        top: 40px;
+        left: 40px;
+        white-space: pre-wrap;
+        font-size: 20px;
+        text-shadow: 0 0 8px #ff0000;
+        max-width: 70vw;
+    }
+
+    .cursor {
+        display: inline-block;
+        width: 10px;
+        background: #ff0000;
+        animation: blink 0.7s steps(1) infinite;
+    }
+
+    @keyframes blink {
+        50% { background: transparent; }
+    }
+
+    /* put the input at the bottom so it does not cover text */
+    #inputContainer {
+        display: none;
+        position: fixed;
+        z-index: 10;
+        left: 40px;
+        bottom: 40px;
+    }
+
+    #answerInput {
+        background: black;
+        color: #ff0000;
+        border: 1px solid #ff0000;
+        padding: 6px;
+        width: 320px;
+        font-size: 20px;
+        text-shadow: 0 0 5px #ff0000;
+        outline: none;
+    }
+
+    #timer {
+        margin-top: 10px;
+        font-size: 22px;
+        font-weight: bold;
+        text-shadow: 0 0 10px #ff0000;
+    }
+
+    #cutscene {
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(circle at center, #111 0%, #000 70%);
+        z-index: 20;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        color: #ff0000;
+        text-align: center;
+    }
+
+    #cutsceneText {
+        font-size: 40px;
+        margin-bottom: 20px;
+        text-shadow: 0 0 15px #ff0000;
+    }
+
+    #cutsceneSub {
+        font-size: 24px;
+        margin-bottom: 40px;
+        opacity: 0.8;
+    }
+
+    #loadingBarContainer {
+        width: 60%;
+        max-width: 600px;
+        height: 20px;
+        border: 1px solid #ff0000;
+        box-shadow: 0 0 10px #ff0000;
+        overflow: hidden;
+        margin-bottom: 30px;
+    }
+
+    #loadingBarFill {
+        height: 100%;
+        width: 0%;
+        background: #ff0000;
+        box-shadow: 0 0 10px #ff0000;
+        transition: width 0.1s linear;
+    }
+
+    .glitch {
+        position: relative;
+        display: inline-block;
+        animation: glitch 600ms infinite;
+    }
+
+    .glitch::before,
+    .glitch::after {
+        content: attr(data-text);
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0.8;
+        clip: rect(0, 900px, 0, 0);
+    }
+
+    .glitch::before {
+        animation: glitchTop 1s infinite linear alternate-reverse;
+    }
+
+    .glitch::after {
+        animation: glitchBottom 1.2s infinite linear alternate-reverse;
+    }
+
+    @keyframes glitch {
+        0% { transform: translate(0, 0); }
+        20% { transform: translate(-1px, 1px); }
+        40% { transform: translate(-1px, -1px); }
+        60% { transform: translate(1px, 1px); }
+        80% { transform: translate(1px, -1px); }
+        100% { transform: translate(0, 0); }
+    }
+
+    @keyframes glitchTop {
+        0% { clip: rect(0,9999px,0,0); transform: translate(0,0); }
+        50% { clip: rect(0,9999px,20px,0); transform: translate(-2px,-2px); }
+        100% { clip: rect(0,9999px,0,0); transform: translate(0,0); }
+    }
+
+    @keyframes glitchBottom {
+        0% { clip: rect(0,9999px,0,0); transform: translate(0,0); }
+        50% { clip: rect(20px,9999px,40px,0); transform: translate(2px,2px); }
+        100% { clip: rect(0,9999px,0,0); transform: translate(0,0); }
+    }
+</style>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+
+<div id="terminal"></div>
+
+<div id="inputContainer">
+    <input id="answerInput" placeholder="Type your answer...">
+    <div id="timer"></div>
+</div>
+
+<!-- AUDIO FILES -->
+<audio id="typingSound" src="typing.mp3" preload="auto"></audio>
+<audio id="glitchSound" src="glitch.mp3" preload="auto"></audio>
+<audio id="alarmSound" src="alarm.mp3" preload="auto"></audio>
+
+<div id="cutscene">
+    <div id="cutsceneText" class="glitch" data-text="YASMINE">YASMINE</div>
+    <div id="cutsceneSub">Decrypting connection...</div>
+    <div id="loadingBarContainer">
+        <div id="loadingBarFill"></div>
+    </div>
+    <div id="cutsceneFinal" style="font-size: 26px; opacity: 0;"></div>
+</div>
+
+<script>
+/* MATRIX RAIN */
+const canvas = document.getElementById("matrixCanvas");
+const ctx = canvas.getContext("2d");
+
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+
+const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const fontSize = 16;
+const columns = canvas.width / fontSize;
+
+let drops = [];
+for (let i = 0; i < columns; i++) drops[i] = Math.floor(Math.random() * -50);
+
+function drawMatrix() {
+    ctx.fillStyle = "rgba(0,0,0,0.05)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle = "#00ff00";
+    ctx.font = fontSize + "px Courier";
+
+    for (let i = 0; i < drops.length; i++) {
+        const text = letters.charAt(Math.floor(Math.random() * letters.length));
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.97) drops[i] = 0;
+        drops[i]++;
+    }
+}
+setInterval(drawMatrix, 50);
+
+/* TERMINAL + LOGIC */
+const terminal = document.getElementById("terminal");
+const inputContainer = document.getElementById("inputContainer");
+const answerInput = document.getElementById("answerInput");
+const timerDisplay = document.getElementById("timer");
+
+const typingSound = document.getElementById("typingSound");
+const glitchSound = document.getElementById("glitchSound");
+const alarmSound = document.getElementById("alarmSound");
+
+const riddle = `I float without wings and hum without lungs,
+I travel on air though I never run.
+I make the quiet turn into light,
+and hold our moments all through the night.
+What am I?`;
+
+const correctAnswer = "ein lied";
+const songLink = "https://suno.com/s/jN4BBzZA2jSOBc0L"; // your song
+
+let wrongAttempts = 0;
+let countdownInterval = null;
+let remainingSeconds = 0;
+
+function playTypingLoop() {
+    try {
+        typingSound.loop = true;
+        typingSound.currentTime = 0;
+        typingSound.play();
+    } catch (e) {}
+}
+
+function stopTypingLoop() {
+    try {
+        typingSound.pause();
+        typingSound.currentTime = 0;
+        typingSound.loop = false;
+    } catch (e) {}
+}
+
+function playGlitch() {
+    try {
+        glitchSound.currentTime = 0;
+        glitchSound.play();
+    } catch (e) {}
+}
+
+function playAlarm() {
+    try {
+        alarmSound.currentTime = 0;
+        alarmSound.loop = true;
+        alarmSound.play();
+    } catch (e) {}
+}
+
+function stopAlarm() {
+    try {
+        alarmSound.pause();
+        alarmSound.currentTime = 0;
+        alarmSound.loop = false;
+    } catch (e) {}
+}
+
+/* typewriter with continuous typing sound */
+function typeText(text, speed = 60, callback = null) {
+    let i = 0;
+    playTypingLoop();
+    function typing() {
+        if (i < text.length) {
+            terminal.innerHTML =
+                terminal.innerHTML.replace(/<span.*<\/span>/, "") +
+                text.charAt(i) +
+                '<span class="cursor"></span>';
+            i++;
+            setTimeout(typing, speed);
+        } else {
+            stopTypingLoop();
+            if (callback) callback();
+        }
+    }
+    typing();
+}
+
+terminal.innerHTML = '<span class="cursor"></span>';
+
+function appendText(t) {
+    terminal.innerHTML =
+        terminal.innerHTML.replace(/<span.*<\/span>/, "") +
+        t +
+        '<span class="cursor"></span>';
+}
+
+/* countdown */
+function startCountdown(seconds) {
+    remainingSeconds = seconds;
+    updateTimerDisplay();
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        remainingSeconds--;
+        updateTimerDisplay();
+        if (remainingSeconds <= 0) {
+            clearInterval(countdownInterval);
+            appendText("\nTime's up.\nThe system marks your partner as lost in the Matrix...\n");
+            stopAlarm();
+        }
+    }, 1000);
+}
+
+function updateTimerDisplay() {
+    const m = String(Math.floor(remainingSeconds / 60)).padStart(2, "0");
+    const s = String(remainingSeconds % 60).padStart(2, "0");
+    timerDisplay.textContent = "TIMER: " + m + ":" + s;
+}
+
+/* cutscene */
+const cutscene = document.getElementById("cutscene");
+const cutsceneText = document.getElementById("cutsceneText");
+const cutsceneSub = document.getElementById("cutsceneSub");
+const loadingBarFill = document.getElementById("loadingBarFill");
+const cutsceneFinal = document.getElementById("cutsceneFinal");
+
+function startCutscene() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    timerDisplay.textContent = "";
+    inputContainer.style.display = "none";
+
+    terminal.innerHTML = "";
+    cutscene.style.display = "flex";
+
+    playGlitch();
+
+    let progress = 0;
+    loadingBarFill.style.width = "0%";
+    cutsceneText.setAttribute("data-text", "YASMINE");
+    cutsceneText.textContent = "YASMINE";
+    cutsceneSub.textContent = "Decrypting connection...";
+    cutsceneFinal.style.opacity = 0;
+    cutsceneFinal.innerHTML = "";
+
+    const loadInterval = setInterval(() => {
+        progress += 2;
+        if (progress > 100) progress = 100;
+        loadingBarFill.style.width = progress + "%";
+
+        if (progress === 40) {
+            cutsceneSub.textContent = "Stabilizing signal...";
+            playGlitch();
+        }
+        if (progress === 80) {
+            cutsceneSub.textContent = "Injecting message into the Matrix...";
+            playGlitch();
+        }
+
+        if (progress === 100) {
+            clearInterval(loadInterval);
+            setTimeout(() => {
+                playGlitch();
+                cutsceneText.setAttribute("data-text", "HAPPY 6 MONTHS, YASMINE");
+                cutsceneText.textContent = "HAPPY 6 MONTHS, YASMINE";
+                cutsceneSub.textContent = "You solved the code.";
+                cutsceneFinal.innerHTML =
+                    'From your own little Matrix.<br><br>' +
+                    '<a href="' + songLink + '" target="_blank" style="color:#ff0000; text-decoration:underline;">Click here for your song</a>';
+                cutsceneFinal.style.opacity = 1;
+            }, 600);
+        }
+    }, 120);
+}
+
+/* intro sequence */
+setTimeout(() => {
+    terminal.innerHTML = "";
+    typeText("hello...\n", 90, () => {
+        setTimeout(() => {
+            typeText("to continue, press Y\n", 80);
+            document.addEventListener("keydown", function keyHandler(e) {
+                if (e.key.toLowerCase() === "y") {
+                    document.removeEventListener("keydown", keyHandler);
+                    appendText("\nloading...\n\n");
+                    setTimeout(() => {
+                        typeText(riddle + "\n\n", 45, () => {
+                            inputContainer.style.display = "block";
+                            answerInput.focus();
+                        });
+                    }, 900);
+                }
+            });
+        }, 300);
+    });
+}, 500);
+
+/* answer handling */
+answerInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+        const guess = answerInput.value.toLowerCase().trim();
+        if (guess === correctAnswer) {
+            appendText("\nCorrect.\nAccess granted.\n\n");
+            stopAlarm();
+            startCutscene();
+        } else {
+            wrongAttempts++;
+            if (wrongAttempts === 1) {
+                appendText("\nIncorrect.\nALARM: You have 10 minutes to give the right answer.\n");
+                appendText("System override... timer forced to 06:00.\n");
+                appendText("You have 6 minutes or your partner dies in the Matrix...\n");
+                playAlarm();
+                startCountdown(6 * 60);
+            } else if (wrongAttempts === 2) {
+                appendText("\nIncorrect… try again.\n\n");
+                appendText("HINT: USE your mother tongue.\n");
+            } else {
+                appendText("\nIncorrect… try again.\n");
+            }
+            answerInput.value = "";
+        }
+    }
+});
+</script>
+
+</body>
+</html>
