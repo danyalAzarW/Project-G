@@ -44,7 +44,7 @@
         50% { background: transparent; }
     }
 
-    /* put the input at the bottom so it does not cover text */
+    /* input at bottom so it does not cover text */
     #inputContainer {
         display: none;
         position: fixed;
@@ -233,12 +233,13 @@ and hold our moments all through the night.
 What am I?`;
 
 const correctAnswer = "ein lied";
-const songLink = "https://suno.com/s/jN4BBzZA2jSOBc0L"; // your song
+const songLink = "https://suno.com/s/jN4BBzZA2jSOBc0L";
 
 let wrongAttempts = 0;
 let countdownInterval = null;
 let remainingSeconds = 0;
 
+/* sounds */
 function playTypingLoop() {
     try {
         typingSound.loop = true;
@@ -384,15 +385,14 @@ function startCutscene() {
     }, 120);
 }
 
-/* intro sequence */
+/* intro sequence – tap anywhere to continue */
 setTimeout(() => {
     terminal.innerHTML = "";
     typeText("hello...\n", 90, () => {
         setTimeout(() => {
-            typeText("to continue, press Y\n", 80);
-            document.addEventListener("keydown", function keyHandler(e) {
-                if (e.key.toLowerCase() === "y") {
-                    document.removeEventListener("keydown", keyHandler);
+            typeText("to continue, tap the screen\n", 80, () => {
+                function startHandler() {
+                    document.removeEventListener("click", startHandler);
                     appendText("\nloading...\n\n");
                     setTimeout(() => {
                         typeText(riddle + "\n\n", 45, () => {
@@ -401,6 +401,7 @@ setTimeout(() => {
                         });
                     }, 900);
                 }
+                document.addEventListener("click", startHandler);
             });
         }, 300);
     });
